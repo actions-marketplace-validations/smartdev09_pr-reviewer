@@ -1,0 +1,44 @@
+# Copy this file to your repository as: .github/workflows/pr-review.yml
+# Then customize as needed!
+
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    name: Review PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Review PR
+        # Option 1: If you published the action to GitHub
+        # uses: yourusername/pr-reviewer@v1
+        
+        # Option 2: If using local/pr-reviewer repository in same org
+        # uses: ./  # Relative path to pr-reviewer repo
+        
+        # Option 3: If pr-reviewer is in a subdirectory
+        uses: ./pr-reviewer  # Adjust path as needed
+        
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          
+          # Optional: Customize these settings
+          # model: gpt-4o-mini  # Use cheaper model
+          # mode: auto  # auto, security-only, quality-only, suggest-only
+          # inline-severity-threshold: high  # critical, high, medium, low
+          # aggregated-severity-threshold: medium
+          # ignore-patterns: |
+          #   **/*.test.ts
+          #   **/*.md
+          #   **/node_modules/**

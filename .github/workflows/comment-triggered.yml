@@ -1,0 +1,141 @@
+# Comment-triggered PR reviews
+# Usage: Comment on a PR with "@pr-review" to trigger review
+
+name: PR Review (Comment Triggered)
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    # Only run on PR comments (not issue comments)
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '@pr-review')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    
+    steps:
+      - name: React with eyes (processing)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes'
+            });
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Checkout the PR head ref
+          ref: refs/pull/${{ github.event.issue.number }}/head
+      
+      - name: Parse command
+        id: parse
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          
+          # Default mode
+          MODE="auto"
+          
+          # Parse command variants
+          if echo "$COMMENT" | grep -q "@pr-review security"; then
+            MODE="security-only"
+            echo "Detected: Security-only mode"
+          elif echo "$COMMENT" | grep -q "@pr-review quality"; then
+            MODE="quality-only"
+            echo "Detected: Quality-only mode"
+          elif echo "$COMMENT" | grep -q "@pr-review suggest"; then
+            MODE="suggest-only"
+            echo "Detected: Suggestions-only mode"
+          elif echo "$COMMENT" | grep -q "@pr-review help"; then
+            MODE="help"
+            echo "Detected: Help command"
+          else
+            echo "Detected: Full review (default)"
+          fi
+          
+          echo "mode=$MODE" >> $GITHUB_OUTPUT
+      
+      - name: Post help message
+        if: steps.parse.outputs.mode == 'help'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const helpMessage = `## 🤖 PR Reviewer Help
+            
+            **Available Commands:**
+            
+            - \`@pr-review\` - Full review (security + quality + suggestions)
+            - \`@pr-review security\` - Security-only review (VAPT methodology)
+            - \`@pr-review quality\` - Code quality review only
+            - \`@pr-review suggest\` - Code suggestions only
+            - \`@pr-review help\` - Show this help message
+            
+            **How it works:**
+            1. Comment with a command on any PR
+            2. The bot will react with 👀 (processing)
+            3. After analysis, you'll get review comments
+            4. Critical/high issues → Inline comments
+            5. Medium/low/info → Aggregated comment
+            
+            **Configuration:**
+            - Runs on latest commit of the PR
+            - Uses token management for large PRs
+            - Respects ignore patterns from workflow config
+            
+            ---
+            *Powered by PR Reviewer*`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: helpMessage
+            });
+      
+      - name: Run PR Reviewer
+        if: steps.parse.outputs.mode != 'help'
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          mode: ${{ steps.parse.outputs.mode }}
+          
+          # Optional: customize these
+          model: gpt-4o-mini
+          inline-severity-threshold: high
+          aggregated-severity-threshold: medium
+          ignore-patterns: |
+            **/*.test.ts
+            **/*.test.js
+            **/*.md
+            **/node_modules/**
+      
+      - name: React with success
+        if: success() && steps.parse.outputs.mode != 'help'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: '+1'
+            });
+      
+      - name: React with failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: '-1'
+            });

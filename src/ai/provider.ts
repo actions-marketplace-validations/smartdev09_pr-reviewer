@@ -1,0 +1,186 @@
+/**
+ * AI Provider Interface
+ * Supports OpenAI with structured outputs
+ */
+
+import { z } from "zod";
+
+export interface AIProviderConfig {
+  apiKey: string;
+  model?: string;
+  baseUrl?: string;
+}
+
+export interface AIResponse<T> {
+  data: T;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+/**
+ * Base AI Provider interface
+ */
+export abstract class BaseAIProvider {
+  protected apiKey: string;
+  protected model: string;
+  protected baseUrl?: string;
+
+  constructor(config: AIProviderConfig) {
+    this.apiKey = config.apiKey;
+    this.model = config.model || this.getDefaultModel();
+    this.baseUrl = config.baseUrl;
+  }
+
+  abstract getDefaultModel(): string;
+
+  abstract callWithSchema<T extends z.ZodTypeAny>(
+    systemPrompt: string,
+    userPrompt: string,
+    schema: T
+  ): Promise<AIResponse<z.infer<T>>>;
+}
+
+/**
+ * OpenAI Provider with structured outputs
+ */
+export class OpenAIProvider extends BaseAIProvider {
+  getDefaultModel(): string {
+    return "gpt-4o-mini";
+  }
+
+  async callWithSchema<T extends z.ZodTypeAny>(
+    systemPrompt: string,
+    userPrompt: string,
+    schema: T
+  ): Promise<AIResponse<z.infer<T>>> {
+    const url = this.baseUrl || "https://api.openai.com/v1/chat/completions";
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "response",
+            strict: true,
+            schema: zodToJsonSchema(schema),
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${error}`);
+    }
+
+    const result = await response.json();
+
+    // Parse the response content
+    const content = result.choices[0].message.content;
+    const parsed = JSON.parse(content);
+
+    // Validate with schema
+    const validated = schema.parse(parsed);
+
+    return {
+      data: validated,
+      usage: result.usage,
+    };
+  }
+}
+
+/**
+ * Convert Zod schema to JSON Schema for OpenAI
+ * (Simplified version - production should use zod-to-json-schema library)
+ */
+function zodToJsonSchema(schema: z.ZodTypeAny): any {
+  // This is a simplified implementation
+  // In production, use: import { zodToJsonSchema } from "zod-to-json-schema"
+  
+  const def = (schema as any)._def;
+  
+  if (schema instanceof z.ZodObject) {
+    const shape = def.shape();
+    const properties: any = {};
+    const required: string[] = [];
+    
+    for (const [key, value] of Object.entries(shape)) {
+      properties[key] = zodToJsonSchema(value as z.ZodTypeAny);
+      if (!(value as any).isOptional()) {
+        required.push(key);
+      }
+    }
+    
+    return {
+      type: "object",
+      properties,
+      required,
+      additionalProperties: false,
+    };
+  }
+  
+  if (schema instanceof z.ZodArray) {
+    return {
+      type: "array",
+      items: zodToJsonSchema(def.type),
+    };
+  }
+  
+  if (schema instanceof z.ZodString) {
+    const result: any = { type: "string" };
+    if (def.description) result.description = def.description;
+    return result;
+  }
+  
+  if (schema instanceof z.ZodNumber) {
+    return { type: "number" };
+  }
+  
+  if (schema instanceof z.ZodBoolean) {
+    return { type: "boolean" };
+  }
+  
+  if (schema instanceof z.ZodEnum) {
+    return {
+      type: "string",
+      enum: def.values,
+    };
+  }
+  
+  if (schema instanceof z.ZodOptional) {
+    return zodToJsonSchema(def.innerType);
+  }
+  
+  if (schema instanceof z.ZodNullable) {
+    const inner = zodToJsonSchema(def.innerType);
+    return {
+      ...inner,
+      nullable: true,
+    };
+  }
+  
+  // Fallback
+  return { type: "string" };
+}
+
+/**
+ * Create AI provider from config
+ */
+export function createAIProvider(config: AIProviderConfig): BaseAIProvider {
+  // For now, only OpenAI
+  // TODO: Add Anthropic and OpenAI-compatible providers
+  return new OpenAIProvider(config);
+}

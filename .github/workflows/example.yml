@@ -1,0 +1,35 @@
+# Example workflow showing how to use PR Reviewer
+
+name: PR Review Example
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    name: Review PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Run PR Reviewer
+        uses: ./  # In production: yourorg/pr-reviewer@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          
+          # Optional configuration
+          mode: auto  # auto, security-only, quality-only
+          model: gpt-4o-mini  # Use cheaper model
+          inline-severity-threshold: high
+          aggregated-severity-threshold: medium
+          
+          ignore-patterns: |
+            **/*.test.ts
+            **/*.md
+            **/node_modules/**

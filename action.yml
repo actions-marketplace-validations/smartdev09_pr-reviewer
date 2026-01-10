@@ -1,0 +1,112 @@
+name: 'PR Reviewer'
+description: 'Fast, comprehensive PR review with security, quality, and code suggestions'
+branding:
+  icon: 'shield-check'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  
+  openai-api-key:
+    description: 'OpenAI API key'
+    required: true
+  
+  provider:
+    description: 'AI provider: openai (default), anthropic, openai-compatible'
+    required: false
+    default: 'openai'
+  
+  model:
+    description: 'Model to use (e.g., gpt-4o-mini, gpt-4o). Leave empty for defaults.'
+    required: false
+  
+  mode:
+    description: 'Review mode: auto (default), security-only, quality-only, suggest-only'
+    required: false
+    default: 'auto'
+  
+  enable-security:
+    description: 'Enable security review (VAPT methodology)'
+    required: false
+    default: 'true'
+  
+  enable-quality:
+    description: 'Enable code quality review'
+    required: false
+    default: 'true'
+  
+  enable-suggestions:
+    description: 'Enable code suggestions'
+    required: false
+    default: 'true'
+  
+  inline-severity-threshold:
+    description: 'Minimum severity for inline comments: critical, high (default), medium, low, info'
+    required: false
+    default: 'high'
+  
+  aggregated-severity-threshold:
+    description: 'Minimum severity for aggregated comment: critical, high, medium (default), low, info'
+    required: false
+    default: 'medium'
+  
+  ignore-patterns:
+    description: 'Newline-separated glob patterns to ignore (e.g., "**/*.test.ts\n**/*.md")'
+    required: false
+  
+  max-tokens:
+    description: 'Maximum tokens per API call'
+    required: false
+    default: '8000'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install Bun dependencies
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        bun install --frozen-lockfile
+    
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        pip install -r python/requirements.txt
+    
+    - name: Build
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        bun run build
+    
+    - name: Run PR Reviewer
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        bun dist/main.js
+      env:
+        INPUT_GITHUB-TOKEN: ${{ inputs.github-token }}
+        INPUT_OPENAI-API-KEY: ${{ inputs.openai-api-key }}
+        INPUT_PROVIDER: ${{ inputs.provider }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_ENABLE-SECURITY: ${{ inputs.enable-security }}
+        INPUT_ENABLE-QUALITY: ${{ inputs.enable-quality }}
+        INPUT_ENABLE-SUGGESTIONS: ${{ inputs.enable-suggestions }}
+        INPUT_INLINE-SEVERITY-THRESHOLD: ${{ inputs.inline-severity-threshold }}
+        INPUT_AGGREGATED-SEVERITY-THRESHOLD: ${{ inputs.aggregated-severity-threshold }}
+        INPUT_IGNORE-PATTERNS: ${{ inputs.ignore-patterns }}
+        INPUT_MAX-TOKENS: ${{ inputs.max-tokens }}

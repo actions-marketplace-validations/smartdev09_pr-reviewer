@@ -1,0 +1,43 @@
+{
+  "name": "pr-reviewer",
+  "version": "0.1.0",
+  "description": "Fast, comprehensive PR review tool combining Bun/TypeScript runtime with Python token management",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/main.ts --outdir dist --target node",
+    "dev": "bun run src/main.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write 'src/**/*.ts'"
+  },
+  "keywords": [
+    "github",
+    "pull-request",
+    "code-review",
+    "ai",
+    "security",
+    "vapt"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0",
+    "zod": "^3.22.4",
+    "minimatch": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "prettier": "^3.2.4",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  }
+}
