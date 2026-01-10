@@ -1,4 +1,4 @@
-name: 'PR Reviewer'
+name: 'PR Reviewer Agent'
 description: 'Fast, comprehensive PR review with security, quality, and code suggestions'
 branding:
   icon: 'shield-check'
